@@ -33,7 +33,20 @@ type BuilderProps = {
   initialRun: { id: string; input: string; complete: boolean } | null;
   /** Outputs from that run, keyed by step_index — rehydrates the cards. */
   initialOutputs: Record<number, StepOutput>;
+  /** All runs for this workflow, newest first — feeds the "Past runs" links. */
+  pastRuns: { id: string; createdAt: string; complete: boolean }[];
 };
+
+// e.g. "Jul 16, 2026, 3:42 PM"
+function formatRunTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 // Per-step run state, keyed by step_index.
 export type StepOutput =
@@ -72,6 +85,7 @@ export default function Builder({
   initialRunsToday,
   initialRun,
   initialOutputs,
+  pastRuns,
 }: BuilderProps) {
   // --- Instructions (editable, autosaved) --------------------------------
   const [instr, setInstr] = useState<Record<string, string>>(() =>
@@ -500,6 +514,35 @@ export default function Builder({
           );
         })}
       </ol>
+
+      {/* Past runs */}
+      {pastRuns.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <h2 className="font-semibold">Past runs</h2>
+          <ul className="flex flex-col gap-2">
+            {pastRuns.map((r) => (
+              <li key={r.id}>
+                <Link
+                  href={`/workflow/${workflowId}/run/${r.id}`}
+                  className="flex items-center justify-between gap-4 rounded-xl border border-black/8 bg-white px-4 py-3 transition-colors hover:border-accent/40"
+                >
+                  <span className="text-sm">
+                    {formatRunTime(r.createdAt)}
+                    {run?.id === r.id && (
+                      <span className="ml-2 text-xs text-muted">
+                        (shown above)
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-xs text-muted">
+                    {r.complete ? "Complete" : "In progress"}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </main>
   );
 }

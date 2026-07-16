@@ -50,15 +50,22 @@ export default async function WorkflowBuilder({
   const initialRunsToday =
     profile && profile.runs_day === today ? profile.runs_today : 0;
 
-  // Restore the most recent run for this workflow so a refresh brings back the
-  // outputs the user last generated (their instructions persist independently).
-  const { data: latestRun } = await supabase
+  // Load this workflow's runs, newest first: the most recent one seeds the
+  // builder (so a refresh restores its outputs), and the full list feeds the
+  // "Past runs" links. RLS scopes these to the current user.
+  const { data: runRows } = await supabase
     .from("runs")
-    .select("id, input_text, status")
+    .select("id, input_text, status, created_at")
     .eq("workflow_id", id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order("created_at", { ascending: false });
+  const runs = runRows ?? [];
+  const latestRun = runs[0] ?? null;
+
+  const pastRuns = runs.map((r) => ({
+    id: r.id,
+    createdAt: r.created_at,
+    complete: r.status === "complete",
+  }));
 
   let initialRun: {
     id: string;
@@ -100,6 +107,7 @@ export default async function WorkflowBuilder({
       initialRunsToday={initialRunsToday}
       initialRun={initialRun}
       initialOutputs={initialOutputs}
+      pastRuns={pastRuns}
     />
   );
 }
