@@ -1,9 +1,10 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { scaffolds } from "@/lib/scaffolds";
+import Builder, { type StepData, type StepOutput } from "./Builder";
 
-// Placeholder builder — confirms the workflow + steps loaded after a scaffold
-// is created. The real builder (editable step chain, runs) arrives in Prompt 8.
+// The builder: loads a workflow, its ordered steps, and the user's daily run
+// count, then hands them to the client <Builder> for editing and running.
 export default async function WorkflowBuilder({
   params,
 }: {
@@ -24,46 +25,81 @@ export default async function WorkflowBuilder({
     .maybeSingle();
   if (!workflow) notFound();
 
-  const { data: steps } = await supabase
+  const { data: stepRows } = await supabase
     .from("workflow_steps")
-    .select("step_index, title, instructions")
+    .select("id, step_index, title, instructions")
     .eq("workflow_id", id)
     .order("step_index");
+  const steps = (stepRows ?? []) as StepData[];
+
+  // Align each step to its scaffold's worked example (by position). Custom
+  // workflows (no matching scaffold) simply get no examples.
+  const scaffold = scaffolds.find((s) => s.use_case === workflow.use_case);
+  const examples = steps.map(
+    (s) => scaffold?.steps[s.step_index]?.exampleInstructions ?? "",
+  );
+
+  // Effective runs used today: the stored counter is stale if runs_day isn't
+  // today (the DB resets it inline on the next claim), so show 0 in that case.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("runs_today, runs_day")
+    .eq("id", user.id)
+    .maybeSingle();
+  const today = new Date().toISOString().slice(0, 10);
+  const initialRunsToday =
+    profile && profile.runs_day === today ? profile.runs_today : 0;
+
+  // Restore the most recent run for this workflow so a refresh brings back the
+  // outputs the user last generated (their instructions persist independently).
+  const { data: latestRun } = await supabase
+    .from("runs")
+    .select("id, input_text, status")
+    .eq("workflow_id", id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let initialRun: {
+    id: string;
+    input: string;
+    complete: boolean;
+  } | null = null;
+  const initialOutputs: Record<number, StepOutput> = {};
+
+  if (latestRun) {
+    initialRun = {
+      id: latestRun.id,
+      input: latestRun.input_text ?? "",
+      complete: latestRun.status === "complete",
+    };
+
+    const { data: runStepRows } = await supabase
+      .from("run_steps")
+      .select("step_index, output, status, error")
+      .eq("run_id", latestRun.id);
+
+    for (const rs of runStepRows ?? []) {
+      if (rs.status === "ok" && rs.output != null) {
+        initialOutputs[rs.step_index] = { status: "ok", output: rs.output };
+      } else if (rs.status === "error") {
+        initialOutputs[rs.step_index] = {
+          status: "error",
+          error: rs.error ?? "This step failed to run.",
+        };
+      }
+    }
+  }
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-6 py-12 flex flex-col gap-6">
-      <Link href="/" className="text-sm text-accent">
-        ← Back to dashboard
-      </Link>
-
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {workflow.title}
-        </h1>
-        <p className="text-muted">
-          The editable builder lands in the next step. For now, here are the
-          steps this workflow was created with:
-        </p>
-      </div>
-
-      <ol className="flex flex-col gap-3">
-        {(steps ?? []).map((step) => (
-          <li
-            key={step.step_index}
-            className="rounded-2xl border border-black/8 bg-white p-5"
-          >
-            <div className="text-xs font-medium uppercase tracking-wide text-muted">
-              Step {step.step_index + 1}
-            </div>
-            <div className="mt-1 font-medium">{step.title}</div>
-            <p className="mt-1 text-sm text-muted">
-              {step.instructions
-                ? step.instructions
-                : "No instructions yet — you'll write these in the builder."}
-            </p>
-          </li>
-        ))}
-      </ol>
-    </main>
+    <Builder
+      workflowId={workflow.id}
+      title={workflow.title}
+      steps={steps}
+      examples={examples}
+      initialRunsToday={initialRunsToday}
+      initialRun={initialRun}
+      initialOutputs={initialOutputs}
+    />
   );
 }
