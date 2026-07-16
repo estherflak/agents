@@ -42,3 +42,43 @@ export async function runAgent({
     .map((block) => block.text)
     .join("");
 }
+
+// Fixed framing prepended to every step. Keeps the model scoped to the one step
+// the PMM authored, rather than free-associating across the whole workflow.
+const STEP_SYSTEM_FRAMING =
+  "You are executing one step of a multi-step marketing workflow that a product marketer designed. Follow the step instructions exactly. Output only what the step asks for.";
+
+/**
+ * Run one step of a PMM workflow. The prompt is composed in three labelled
+ * parts (spec §4.2): fixed system framing, then context (source material +
+ * prior step outputs), then the PMM's verbatim step instructions. This
+ * transparency is the teaching goal — the PMM's own words drive the model and
+ * they can see exactly how each step feeds the next.
+ */
+export async function runStep({
+  title,
+  instructions,
+  inputText,
+  priorStepOutputs,
+}: {
+  title: string;
+  instructions: string;
+  inputText?: string;
+  priorStepOutputs?: string[];
+}): Promise<string> {
+  const parts: string[] = [];
+
+  if (inputText && inputText.trim()) {
+    parts.push(`--- SOURCE MATERIAL ---\n${inputText.trim()}`);
+  }
+
+  (priorStepOutputs ?? []).forEach((output, i) => {
+    if (output && output.trim()) {
+      parts.push(`--- OUTPUT OF STEP ${i + 1} ---\n${output.trim()}`);
+    }
+  });
+
+  parts.push(`--- STEP INSTRUCTIONS: ${title} ---\n${instructions}`);
+
+  return runAgent({ system: STEP_SYSTEM_FRAMING, input: parts.join("\n\n") });
+}
