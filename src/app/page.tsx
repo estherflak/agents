@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { scaffolds } from "@/lib/scaffolds";
 import { createWorkflowFromScaffold, deleteWorkflow } from "./actions";
+import IntroBanner from "@/components/IntroBanner";
+import ScaffoldCard from "@/components/ScaffoldCard";
+import SubmitButton from "@/components/SubmitButton";
 
 // One-line pitch per use case, shown on its card.
 const USE_CASE_BLURBS: Record<string, string> = {
@@ -39,6 +42,8 @@ export default async function Dashboard() {
 
   return (
     <main className="mx-auto w-full max-w-4xl px-6 py-12 flex flex-col gap-12">
+      <IntroBanner />
+
       {/* Start from a use case */}
       <section className="flex flex-col gap-5">
         <div className="flex flex-col gap-1">
@@ -57,21 +62,11 @@ export default async function Dashboard() {
               key={scaffold.id}
               action={createWorkflowFromScaffold.bind(null, scaffold.use_case)}
             >
-              <button
-                type="submit"
-                className="group h-full w-full rounded-2xl border border-black/8 bg-white p-5 text-left transition-colors hover:border-accent/40"
-              >
-                <div className="font-semibold">{scaffold.title}</div>
-                <p className="mt-1 text-sm text-muted">
-                  {USE_CASE_BLURBS[scaffold.use_case]}
-                </p>
-                <div className="mt-3 text-xs text-muted">
-                  {scaffold.steps.map((s) => s.title).join("  →  ")}
-                </div>
-                <span className="mt-4 inline-block text-sm font-medium text-accent">
-                  Start →
-                </span>
-              </button>
+              <ScaffoldCard
+                title={scaffold.title}
+                blurb={USE_CASE_BLURBS[scaffold.use_case]}
+                steps={scaffold.steps.map((s) => s.title)}
+              />
             </form>
           ))}
         </div>
@@ -102,12 +97,11 @@ export default async function Dashboard() {
                   </div>
                 </Link>
                 <form action={deleteWorkflow.bind(null, wf.id)}>
-                  <button
-                    type="submit"
-                    className="rounded-full border border-black/10 px-3 py-1.5 text-sm text-muted transition-colors hover:border-black/20 hover:text-foreground"
-                  >
-                    Delete
-                  </button>
+                  <SubmitButton
+                    idle="Delete"
+                    pending="Deleting…"
+                    className="rounded-full border border-black/10 px-3 py-1.5 text-sm text-muted transition-colors hover:border-black/20 hover:text-foreground disabled:opacity-60"
+                  />
                 </form>
               </li>
             ))}

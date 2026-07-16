@@ -13,14 +13,14 @@ export default async function Header() {
   if (!user) return null;
 
   return (
-    <header className="flex items-center justify-between border-b border-black/5 px-6 py-3">
-      <Link href="/" className="font-semibold tracking-tight">
+    <header className="flex items-center justify-between gap-3 border-b border-black/5 px-6 py-3">
+      <Link href="/" className="shrink-0 font-semibold tracking-tight">
         Agents
       </Link>
 
-      <div className="flex items-center gap-4 text-sm">
-        <span className="text-muted">{user.email}</span>
-        <form action={signOut}>
+      <div className="flex min-w-0 items-center gap-4 text-sm">
+        <span className="truncate text-muted">{user.email}</span>
+        <form action={signOut} className="shrink-0">
           <button
             type="submit"
             className="rounded-full border border-black/10 px-4 py-1.5 font-medium transition-colors hover:bg-black/5"

@@ -63,11 +63,20 @@ async function postRunStep(payload: unknown): Promise<{
   runsToday?: number;
   error?: string;
 }> {
-  const res = await fetch("/api/run-step", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  let res: Response;
+  try {
+    res = await fetch("/api/run-step", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    // Network error (offline, dropped connection) — never a stack trace.
+    return {
+      status: 0,
+      error: "Couldn't reach the server. Check your connection and try again.",
+    };
+  }
   let data: { output?: string; runsToday?: number; error?: string } = {};
   try {
     data = await res.json();
